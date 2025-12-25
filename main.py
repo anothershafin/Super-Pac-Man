@@ -3,11 +3,10 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import math
 
-# Camera-related variables (better viewing angle)
-# (x, y, z) -> x sideways, y forward/back, z height
-camera_pos = (-450, -650, 520)
+camera_pos = (0, -650, 520)
 
-fovY = 95
+
+fovY = 100
 GRID_LENGTH = 600
 rand_var = 423
 
@@ -15,7 +14,7 @@ rand_var = 423
 player_x = -350.0
 player_y = 0.0
 player_z = 0.0
-player_r = 18.0
+player_r = 18.0        # radius
 player_speed = 18.0
 
 # ---------------- World params (keep consistent with draw_environment) ----------------
@@ -29,7 +28,7 @@ right_inner_x =  L - wall_thickness
 
 # ---------------- Portal ----------------
 portal_active = False
-portal_r = 55.0
+portal_r = 45.0
 portal_z_center = 25.0  # height center of portal on the wall
 portal_left = {"x": left_inner_x, "y": 0.0, "z": portal_z_center}
 portal_right = {"x": right_inner_x, "y": 0.0, "z": portal_z_center}
@@ -95,8 +94,6 @@ def spawn_portals():
     portal_active = True
 
 
-
-
 def draw_portal_at(x_plane, cy, cz):
     # circle in the Y-Z plane at fixed X (wall plane)
     glColor3f(0.0, 0.0, 0.0)
@@ -158,8 +155,6 @@ def try_teleport():
 
 
 
-
-
 def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glColor3f(1, 1, 1)
     glMatrixMode(GL_PROJECTION)
@@ -207,9 +202,6 @@ def keyboardListener(key, x, y):
     try_teleport()
 
     glutPostRedisplay()
-
-
-
 
 
 def specialKeyListener(key, x, y):
