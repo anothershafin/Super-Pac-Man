@@ -2,6 +2,8 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import math
+import random
+
 
 # camera_pos = (-450, -650, 520)
 camera_pos = (0, -650, 520)
@@ -28,11 +30,63 @@ lives = 3
 base_player_speed = 18.0
 player_speed = base_player_speed
 
-speed_boost_active = False
-speed_boost_end_time = 0  
+speed_boost_timer = 0
 
 player_z = 0.0
 player_r = 18.0        # radius
+
+
+
+# ---------------- Rewards ----------------
+rewards = []
+reward_config = {
+    1: {
+        "small": 5,
+        "medium": 2,
+        "big": 1,
+        "medium_positions": [
+            (-480,  300),
+            ( 480, -300)
+        ],
+        "big_positions": [
+            (500,  500)
+        ]
+    },
+    2: {
+        "small": 10,
+        "medium": 4,
+        "big": 1,
+        "medium_positions": [
+            (-500,  500),
+            ( 500,  500),
+            (-500, -500),
+            ( 500, -500)
+        ],
+        "big_positions": [
+            (600, 350)
+        ]
+    },
+    3: {
+        "small": 15,
+        "medium": 8,
+        "big": 1,
+        "medium_positions": [
+            (-500,  500),
+            ( 500,  500),
+            (-500, -500),
+            ( 500, -500),
+            (-400,  300),
+            ( 300,  400),
+            (-400, -300),
+            ( 300, -400)
+        ],
+        "big_positions": [
+            (0, 0)
+        ]
+    }
+    
+}
+
 
 # ---------------- World Building ----------------
 L = 600
@@ -65,6 +119,26 @@ def set_active_level(level_num):
     level_2_active = level_num == 2
     level_3_active = level_num == 3
     level_4_active = level_num == 4
+
+def promote_level():
+    if level_1_active:
+        set_active_level(2)
+    elif level_2_active:
+        set_active_level(1)      ## Temporarily level 1
+
+    spawn_rewards_for_level()
+
+
+def get_active_level():
+    if level_1_active:
+        return 1
+    elif level_2_active:
+        return 2
+    elif level_3_active:
+        return 3
+    elif level_4_active:
+        return 4
+    return 1
 
 
 def clamp(v, lo, hi):
@@ -114,6 +188,75 @@ def allowed_on_green_level_2(nx, ny):
         if nx < -265 or nx > 265:
             return True
         
+def allowed_on_green_level_3(nx, ny):
+    return False
+def allowed_on_green_level_4(nx, ny):
+    return False                                            # NO level 4 -- Remove
+
+def is_green_for_current_level(x, y):
+    if level_1_active:
+        return allowed_on_green(x, y)
+    elif level_2_active:
+        return allowed_on_green_level_2(x, y)
+    elif level_3_active:
+        return allowed_on_green_level_3(x, y)
+    elif level_4_active:
+        return allowed_on_green_level_4(x, y)
+    return False
+
+
+def random_green_position():
+    for _ in range(200):   # safety limit
+        x = random.uniform(-L + 40, L - 40)
+        y = random.uniform(-L + 40, L - 40)
+
+        if is_green_for_current_level(x, y):
+            return x, y
+
+    return 0, 0
+
+
+def spawn_rewards_for_level():
+    global rewards
+    rewards.clear()
+
+    level = get_active_level()
+    cfg = reward_config[level]
+
+    # ---------- Small rewards (random green) ----------
+    for _ in range(cfg["small"]):
+        x, y = random_green_position()
+        rewards.append({
+            "x": x,
+            "y": y,
+            "z": 10,
+            "type": 1,
+            "r": 12
+        })
+
+    # ---------- Medium rewards (fixed positions) ----------
+    for (x, y) in cfg["medium_positions"]:
+        # if is_green_for_current_level(x, y):
+            rewards.append({
+                "x": x,
+                "y": y,
+                "z": 10,
+                "type": 2,
+                "r": 14
+            })
+
+    # ---------- Big rewards (fixed positions) ----------
+    for (x, y) in cfg["big_positions"]:
+        # if is_green_for_current_level(x, y):
+            rewards.append({
+                "x": x,
+                "y": y,
+                "z": 10,
+                "type": 3,
+                "r": 16
+            })
+
+
 
 def try_move(dx, dy):
     
@@ -146,6 +289,64 @@ def draw_player():
     glutSolidCube(14)
 
     glPopMatrix()
+
+def draw_rewards():
+    for r in rewards:
+        glPushMatrix()
+        glTranslatef(r["x"], r["y"], r["z"])
+
+        if r["type"] == 1:
+            glColor3f(1, 0, 0)
+            # glColor3f(0.3, 0.9, 0.3)
+            
+        elif r["type"] == 2:
+            glColor3f(0, 1, 0) 
+            # glColor3f(0.9, 0.9, 0.2)
+        else:
+            glColor3f(0, 0, 1)
+
+        glutSolidSphere(r["r"], 12, 12)
+        glPopMatrix()
+
+
+def check_reward_collision():
+    
+    global rewards
+    to_remove = []
+
+    px, py = player_x, player_y
+    pz = player_z + player_r
+
+    for r in rewards:
+        dx = px - r["x"]
+        dy = py - r["y"]
+        dz = pz - r["z"]
+
+        if dx*dx + dy*dy + dz*dz <= (player_r + r["r"])**2:
+            apply_reward(r["type"])
+            to_remove.append(r)
+            break  # still stop on level change
+
+    for r in to_remove:
+        if r in rewards:
+            rewards.remove(r)
+
+def apply_reward(r_type):
+    global score, lives, player_speed, speed_boost_timer
+
+    if r_type == 1:
+        score += 10
+        player_speed += 2
+
+    elif r_type == 2:
+        score += 25
+        lives += 1
+        player_speed = base_player_speed + 12
+        speed_boost_timer = 720
+
+    elif r_type == 3:
+        score += 50
+        promote_level()
 
 
 def spawn_horizontal_portals():
@@ -586,6 +787,14 @@ def draw_environment():
 
 
 def idle():
+    global speed_boost_timer, player_speed
+
+    if speed_boost_timer > 0:
+        speed_boost_timer -= 1
+        if speed_boost_timer == 0:
+            player_speed = base_player_speed
+
+    check_reward_collision()
     glutPostRedisplay()
 
 
@@ -597,6 +806,8 @@ def showScreen():
     setupCamera()
 
     draw_environment()
+    draw_rewards()
+
     # portals should be drawn after walls exist
     draw_portals()
 
@@ -605,6 +816,8 @@ def showScreen():
 
     # draw_text(10, 770, "WASD move | 1 spawn portals")
     draw_text(10, 740, f"Player: ({player_x:.1f}, {player_y:.1f})")
+    draw_text(10, 770, f"Score: {score}")
+    draw_text(10, 710, f"Lives: {lives}")
 
     glutSwapBuffers()
 
@@ -624,6 +837,9 @@ def main():
     glutMouseFunc(mouseListener)
     glutIdleFunc(idle)
 
+    spawn_rewards_for_level()
+
+    
     glutMainLoop()
 
 
