@@ -25,9 +25,14 @@ level_4_active = False
 player_x = -350.0
 player_y = -350.0
 score = 0
+
 MAX_LIVES = 5
 lives = MAX_LIVES
 
+player_spawn_positions = {
+    2: (-350, -350),   # Level 1 spawn
+    3: ( -350, -350),   # Level 2 spawn
+}
 
 base_player_speed = 18.0
 player_speed = base_player_speed
@@ -73,22 +78,22 @@ reward_config = {
         "medium": 8,
         "big": 1,
         "medium_positions": [
-            (-500,  500),
-            ( 500,  500),
-            (-500, -500),
-            ( 500, -500),
-            (-400,  300),
-            ( 300,  400),
-            (-400, -300),
-            ( 300, -400)
+            (143,  352),
+            ( 191,  -232),
+            (119, 520),
+            ( 425, -548),
+            (-262,  222),
+            ( -136,  52),
+            (-116, -218),
+            ( -116, -520)
         ],
+        
         "big_positions": [
-            (0, 0)
+            (113, 392)
         ]
     }
     
 }
-
 
 # ---------------- World Building ----------------
 L = 600
@@ -152,7 +157,7 @@ portal_plane_eps = 6.0
 portal_cooldown = 0
 
 
-# ---------------- Enemy (Level 1) ----------------
+# ----------------Level 1 Enemies ----------------
 enemy1 = {
     "x": 350.0,     # opposite green lane
     "y": -300.0,
@@ -175,7 +180,7 @@ def player_on_enemy_side():
         return on_right_lane(player_x)
 
 
-# ---------------- Level 2 Enemies + Bullets ----------------
+# ---------------- Level 2 Enemies----------------
 enemy_L2_type1 = []   # TL and BR
 enemy_L2_type2 = None # TR turret
 
@@ -241,15 +246,29 @@ def set_active_level(level_num):
 
 
 
+    
 def promote_level():
     if level_1_active:
         set_active_level(2)
+        reset_player_for_level(2)
     elif level_2_active:
         set_active_level(3)
+        reset_player_for_level(3)
     elif level_3_active:
-        set_active_level(1)  # or set_active_level(4) if you add level 4 later
-
+        set_active_level(1)
+        
     spawn_rewards_for_level()
+
+
+def reset_player_for_level(level):
+    global player_x, player_y, player_z
+
+    if level in player_spawn_positions:
+        player_x, player_y = player_spawn_positions[level]
+    else:
+        player_x, player_y = 0, 0
+
+    player_z = 0
 
 
 
@@ -415,11 +434,25 @@ def allowed_on_level_2(nx, ny):
     if ny < -L + player_r or ny > L - player_r:
         return False
 
-    tile = level2_cell_at(nx, ny)
+    # tile = level2_cell_at(nx, ny)
 
-    # walkable = green(1) and yellow(2)
-    return tile in (1, 2)
-
+    # # walkable = green(1) and yellow(2)
+    # return tile in (1, 2)
+    
+    if ny >= 432 or ny <= -432 :
+        return True
+    
+    if ny < 432 and ny > 270:
+           if nx < -265 or nx > 265:
+            return True
+        
+    if ny < 270 and ny > -270:
+        if nx < -435 or nx > 435:
+            return True
+        
+    if ny < -270 and ny > -432:
+        if nx < -265 or nx > 265:
+            return True
         
 def level3_cell_at(wx, wy):
     cell_w = (2 * L) / LEVEL3_COLS
@@ -460,8 +493,6 @@ def is_green_for_current_level(x, y):
 def allowed_on_green_level_3(nx, ny):
     return allowed_on_level_3(nx, ny)
 
-
-
 def random_green_position():
     for _ in range(200):   # safety limit
         x = random.uniform(-L + 40, L - 40)
@@ -474,44 +505,80 @@ def random_green_position():
 
 
 def spawn_rewards_for_level():
-    global rewards
+    global rewards , reward_phase
     rewards.clear()
+    reward_phase = 1
+    spawn_current_reward_phase()
+    
+        
+def spawn_current_reward_phase():
+    global rewards
 
     level = get_active_level()
     cfg = reward_config[level]
 
-    # ---------- Small rewards (random green) ----------
-    for _ in range(cfg["small"]):
-        x, y = random_green_position()
-        rewards.append({
-            "x": x,
-            "y": y,
-            "z": 10,
-            "type": 1,
-            "r": 12
-        })
+    # ---------- Phase 1 ----------
+    if reward_phase == 1:
+        for _ in range(cfg["small"]):
+            x, y = random_green_position()
+            rewards.append({
+                "x": x,
+                "y": y,
+                "z": 10,
+                "type": 1,
+                "r": 12
+            })
 
-    # ---------- Medium rewards (fixed positions) ----------
-    for (x, y) in cfg["medium_positions"]:
-        # if is_green_for_current_level(x, y):
+    # ---------- Phase 2 ----------
+    elif reward_phase == 2:
+        for (x, y) in cfg["medium_positions"]:
             rewards.append({
                 "x": x,
                 "y": y,
                 "z": 10,
                 "type": 2,
-                "r": 14
+                "r": 16
             })
 
-    # ---------- Big rewards (fixed positions) ----------
-    for (x, y) in cfg["big_positions"]:
-        # if is_green_for_current_level(x, y):
+    # ---------- Phase 3 ----------
+    elif reward_phase == 3:
+        for (x, y) in cfg["big_positions"]:
             rewards.append({
                 "x": x,
                 "y": y,
                 "z": 10,
                 "type": 3,
-                "r": 16
+                "r": 20
             })
+
+def can_place_portal_here(px, py):
+    if level_1_active:
+        return True
+    if level_2_active:
+        return level2_cell_at(px, py) == 1
+    if level_3_active:
+        return level3_cell_at(px, py) == 1
+    return True
+
+def spawn_player_for_level(level):
+    global player_x, player_y
+
+    if level == 1:
+        player_x, player_y = -350, -350 
+
+    elif level == 2:
+        player_x, player_y = -520, -520
+
+
+    elif level == 3:
+        player_x, player_y = random_green_position()
+
+def advance_reward_phase():
+    global reward_phase
+
+    if reward_phase < 3:
+        reward_phase += 1
+        spawn_current_reward_phase()
 
 def can_place_portal_here(px, py):
     if level_1_active:
@@ -553,6 +620,12 @@ def try_move(dx, dy):
     if level_3_active:
         if allowed_on_level_3(nx, ny):
             player_x, player_y = nx, ny
+            
+    if level_3_active:
+        if allowed_on_level_3(nx, ny):
+            player_x, player_y = nx, ny
+
+
 
 
 
@@ -585,24 +658,146 @@ def draw_enemy_level_1():
     glPopMatrix()
 
 
-
-
 def draw_rewards():
     for r in rewards:
         glPushMatrix()
         glTranslatef(r["x"], r["y"], r["z"])
 
         if r["type"] == 1:
-            glColor3f(1, 0, 0)
-            # glColor3f(0.3, 0.9, 0.3)
-            
-        elif r["type"] == 2:
-            glColor3f(0, 1, 0) 
-            # glColor3f(0.9, 0.9, 0.2)
-        else:
-            glColor3f(0, 0, 1)
+            # Core energy sphere
+            glColor3f(255/255, 128/255, 128/255)
+            glPushMatrix()
+            glutSolidSphere(8, 16, 16)
+            glPopMatrix()
 
-        glutSolidSphere(r["r"], 12, 12)
+            # Upper energy band
+            glColor3f(38/255, 49/255, 150/255)
+            glPushMatrix()
+            glTranslatef(0, 0, 6)
+            glRotatef(90, 1, 0, 0)
+            glutSolidTorus(1.5, 10, 10, 24)
+            glPopMatrix()
+
+        elif r["type"] == 2:
+            # medium reward shape
+        
+            # core energy sphere
+            glColor3f(163/255, 0/255, 102/255)
+            glColor3f(0, 1, 1)
+            glutSolidSphere(10, 16, 16)
+
+            # Frame cube
+            glColor3f(0,0,0)
+            glColor3f(1, 0, 1)
+            glPushMatrix()
+            glScalef(1.8, 1.8, 1.8)
+            glutWireCube(12)
+            glPopMatrix()
+
+            # Energy ring
+            glColor3f(1,1,1)
+            glColor3f(255/255, 255/255, 255/255)
+            glPushMatrix()
+            glRotatef(90, 1, 0, 0)
+            glutSolidTorus(2, 16, 10, 24)
+            glPopMatrix()
+            
+        else:
+
+            # big reward shape
+            glColor3f(250/255, 250/255, 250/255)
+            glPushMatrix()
+            glScalef(2.2, 2.2, 0.6)
+            glutSolidCube(10)
+            glPopMatrix()
+
+            # Crystal spike
+            # glColor3f(20/255, 128/255, 93/255)
+            glColor3f(0,0,0)            
+            glPushMatrix()
+            glTranslatef(0, 0, 8)
+            glutSolidCone(10, 32, 20, 20)
+            glPopMatrix()
+
+            # Portal ring
+            glPushMatrix()
+            glTranslatef(0, 0, 20)
+            glRotatef(90, 1, 0, 0)
+            glutSolidTorus(2.5, 18, 12, 32)
+            glPopMatrix()
+
+            # Energy orb
+            glPushMatrix()
+            glTranslatef(0, 0, 36)
+            glutSolidSphere(6, 16, 16)
+            glPopMatrix()
+            
+
+        glPopMatrix()
+
+def check_enemy_collision():
+    global lives
+
+    if not level_1_active:
+        return
+
+    ex, ey = enemy1["x"], enemy1["y"]
+    px, py = player_x, player_y
+
+    dx = px - ex
+    dy = py - ey
+
+    if dx*dx + dy*dy <= (player_r + enemy1["r"])**2:
+        player_hit_by_enemy()
+
+def update_bullets_level2():
+    global bullets
+
+    new_list = []
+    for b in bullets:
+        b["x"] += b["vx"]
+        b["y"] += b["vy"]
+
+        # bullet exists only inside its own green block (TR)
+        if level2_green_block(b["x"], b["y"]) != b["home"]:
+            continue
+
+        # collision with player only if player also in TR block
+        if level2_green_block(player_x, player_y) == b["home"]:
+            dx = player_x - b["x"]
+            dy = player_y - b["y"]
+            if dx*dx + dy*dy <= (player_r + b["r"])**2:
+                player_hit_by_enemy()
+                continue
+
+        new_list.append(b)
+
+    bullets = new_list
+
+def draw_level2_enemies_and_bullets():
+    # type1 enemies
+    for e in enemy_L2_type1:
+        glPushMatrix()
+        glTranslatef(e["x"], e["y"], e.get("z", player_r + 10))
+        glColor3f(0.2, 0.2, 0.8)  # blue
+        glutSolidSphere(e["r"], 16, 16)
+        glPopMatrix()
+
+    # type2 turret
+    if enemy_L2_type2 is not None:
+        t = enemy_L2_type2
+        glPushMatrix()
+        glTranslatef(t["x"], t["y"], player_r)
+        glColor3f(0.9, 0.3, 0.1)  # orange turret
+        glutSolidSphere(t["r"], 16, 16)
+        glPopMatrix()
+
+    # bullets
+    for b in bullets:
+        glPushMatrix()
+        glTranslatef(b["x"], b["y"], player_r)
+        glColor3f(1.0, 1.0, 0.2)  # yellow bullet
+        glutSolidSphere(b["r"], 10, 10)
         glPopMatrix()
 
 def check_enemy_collision():
@@ -689,6 +884,22 @@ def player_hit_by_enemy():
 
 
 
+def player_hit_by_enemy():
+    global lives
+
+    lives -= 1
+
+    if lives <= 0:
+        lives = 0
+        # later: game over logic
+        print("GAME OVER")
+        spawn_player_for_level(get_active_level())
+        return
+
+    # respawn player
+    spawn_player_for_level(get_active_level())
+
+
 def check_reward_collision():
     
     global rewards
@@ -710,6 +921,10 @@ def check_reward_collision():
     for r in to_remove:
         if r in rewards:
             rewards.remove(r)
+    
+    # ---------- Phase progression ----------
+    if not rewards:
+        advance_reward_phase()
 
 def apply_reward(r_type):
     global score, lives, player_speed, speed_boost_timer
@@ -734,6 +949,13 @@ def spawn_horizontal_portals():
 
     y_on_wall = clamp(player_y, -L + portal_r, L - portal_r)
 
+    if not (
+        is_valid_portal_terrain(left_inner_x + player_r + 8, y_on_wall) and
+        is_valid_portal_terrain(right_inner_x - player_r - 8, y_on_wall)
+    ):
+        portal_lr_active = False
+        return
+
     portal_left  = {"x": left_inner_x,  "y": y_on_wall, "z": portal_z_center}
     portal_right = {"x": right_inner_x, "y": y_on_wall, "z": portal_z_center}
 
@@ -745,10 +967,31 @@ def spawn_vertical_portals():
 
     x_on_wall = clamp(player_x, -L + portal_r, L - portal_r)
 
+    if not (
+        is_valid_portal_terrain(x_on_wall, L - player_r - 8) and
+        is_valid_portal_terrain(x_on_wall, -L + player_r + 8)
+    ):
+        portal_ud_active = False
+        return
+
     portal_top    = {"x": x_on_wall, "y": L - wall_thickness, "z": portal_z_center}
     portal_bottom = {"x": x_on_wall, "y": -L + wall_thickness, "z": portal_z_center}
 
     portal_ud_active = True
+
+
+def is_valid_portal_terrain(x, y):
+    
+    if level_1_active and allowed_on_green(x, y):
+        return True
+
+    if level_2_active and allowed_on_level_2(x, y):
+        return True
+
+    if level_3_active and allowed_on_level_3(x, y):
+        return True
+
+    return False
 
 
 def toggle_horizontal_portals():
@@ -1405,10 +1648,8 @@ def main():
     if level_2_active:
         spawn_level2_enemies()
 
-
     
     glutMainLoop()
-
 
 if __name__ == "__main__":
     main()
