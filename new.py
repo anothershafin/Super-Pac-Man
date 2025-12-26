@@ -90,6 +90,20 @@ reward_config = {
 
 # ---------------- World Building ----------------
 L = 600
+
+# ---------------- Level 2 Grid ----------------
+LEVEL2_PATTERN = [
+    [1, 1, 2, 2, 2, 1, 1],
+    [1, 1, 3, 3, 3, 1, 1],
+    [2, 3, 3, 3, 3, 3, 2],
+    [2, 3, 3, 3, 3, 3, 2],
+    [2, 3, 3, 3, 3, 3, 2],
+    [1, 1, 3, 3, 3, 1, 1],
+    [1, 1, 2, 2, 2, 1, 1]
+]
+LEVEL2_ROWS = 7
+LEVEL2_COLS = 7
+
 L2 = 1000
 hazard_half_width = 130
 wall_thickness = 5
@@ -166,27 +180,33 @@ def allowed_on_green(nx, ny):
     return True
 
 
-def allowed_on_green_level_2(nx, ny):
-    # boundaries
+def level2_cell_at(wx, wy):
+    # Convert world coords (-L..L) to grid cell indices
+    cell_w = (2 * L) / LEVEL2_COLS
+    cell_h = (2 * L) / LEVEL2_ROWS
+
+    col = int((wx + L) / cell_w)
+    row = int((wy + L) / cell_h)
+
+    # clamp to [0..6] so edge cases don't crash
+    col = clamp(col, 0, LEVEL2_COLS - 1)
+    row = clamp(row, 0, LEVEL2_ROWS - 1)
+
+    return LEVEL2_PATTERN[row][col]   # 1/2/3
+
+
+def allowed_on_level_2(nx, ny):
+    # boundaries (same as your old function)
     if nx < -L + player_r or nx > L - player_r:
         return False
     if ny < -L + player_r or ny > L - player_r:
         return False
 
-    if ny >= 432 or ny <= -432 :
-        return True
-    
-    if ny < 432 and ny > 270:
-           if nx < -265 or nx > 265:
-            return True
-        
-    if ny < 270 and ny > -270:
-        if nx < -435 or nx > 435:
-            return True
-        
-    if ny < -270 and ny > -432:
-        if nx < -265 or nx > 265:
-            return True
+    tile = level2_cell_at(nx, ny)
+
+    # walkable = green(1) and yellow(2)
+    return tile in (1, 2)
+
         
 def allowed_on_green_level_3(nx, ny):
     return False
@@ -256,6 +276,16 @@ def spawn_rewards_for_level():
                 "r": 16
             })
 
+def can_place_portal_here(px, py):
+    # level 1: keep existing behavior (always allowed on green lanes)
+    if level_1_active:
+        return True
+
+    # level 2: only green tiles can place portals
+    if level_2_active:
+        return level2_cell_at(px, py) == 1
+
+    return True
 
 
 def try_move(dx, dy):
@@ -268,9 +298,10 @@ def try_move(dx, dy):
         if allowed_on_green(nx, ny):
             player_x, player_y = nx, ny
 
-    if level_2_active :
-        if allowed_on_green_level_2(nx, ny):
+    if level_2_active:
+        if allowed_on_level_2(nx, ny):
             player_x, player_y = nx, ny
+
 
 
 def draw_player():
@@ -431,14 +462,8 @@ def draw_portals():
 
 def in_minor_hazard_zone(px, py):
     
-    if level_2_active:
-        if py > 432 or py < -432:
-            if px > -265 and px < 265:
-                return True
-
-        if px > 265 or px < -265:
-            if py < 270 and py > -270:
-                return True
+    if level_2_active and level2_cell_at(player_x, player_y) != 1:
+        return
 
 
 def try_teleport():
@@ -549,12 +574,13 @@ def keyboardListener(key, x, y):
 
     # spawn portal pair
     elif key == b'1':
-        if not ((level_2_active or level_3_active or level_4_active) and in_minor_hazard_zone(player_x, player_y)):
+        if can_place_portal_here(player_x, player_y):
             toggle_horizontal_portals()
 
     elif key == b'2':
-        if not ((level_2_active or level_3_active or level_4_active) and in_minor_hazard_zone(player_x, player_y)):
+        if can_place_portal_here(player_x, player_y):
             toggle_vertical_portals()
+
 
     
     
@@ -695,18 +721,6 @@ def draw_level_1():
 
 
 def draw_level_2():
-    
-    
-    # 5×5 pattern: 1=green, 2=yellow, 3=red
-    pattern = [
-        [1, 1, 2, 2, 2, 1, 1],
-        [1, 1, 3, 3, 3, 1, 1],
-        [2, 3, 3, 3, 3, 3, 2],
-        [2, 3, 3, 3, 3, 3, 2],
-        [2, 3, 3, 3, 3, 3, 2],
-        [1, 1, 3, 3, 3, 1, 1],
-        [1, 1, 2, 2, 2, 1, 1]
-    ]
 
     # Colors
     color_map = {
@@ -740,7 +754,8 @@ def draw_level_2():
 
     for row in range(rows):
         for col in range(cols):
-            draw_cell(col, row, pattern[row][col])
+            draw_cell(col, row, LEVEL2_PATTERN[row][col])
+
     
     glColor3f(0.70, 0.78, 0.92)
     
