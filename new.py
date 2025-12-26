@@ -232,6 +232,122 @@ def spawn_level2_enemies():
         "fire_cd": 0         # cooldown frames
     }
 
+
+# ---------------- Level 3 Enemies ----------------
+enemy_L3_type1 = []
+
+
+def level3_world_center_of_cell(row, col):
+    """
+    row, col are 0-indexed (like LEVEL3_PATTERN indexing).
+    Returns world-space center (x,y) for that cell.
+    """
+    cols = LEVEL3_COLS
+    rows = LEVEL3_ROWS
+    cell_w = (2 * L) / cols
+    cell_h = (2 * L) / rows
+    start_x = -L
+    start_y = -L
+    x = start_x + (col + 0.5) * cell_w
+    y = start_y + (row + 0.5) * cell_h
+    return x, y
+
+def level3_rect_bounds(r1, c1, r2, c2, margin=8.0):
+    """
+    r1,c1,r2,c2 are 1-indexed IN YOUR INSTRUCTIONS.
+    Returns (xmin, xmax, ymin, ymax) bounds in world space,
+    slightly shrunk by margin so enemy doesn't touch edges.
+    """
+    cols = LEVEL3_COLS
+    rows = LEVEL3_ROWS
+    cell_w = (2 * L) / cols
+    cell_h = (2 * L) / rows
+    start_x = -L
+    start_y = -L
+
+    # convert to 0-index inclusive ranges
+    rr1 = r1 - 1
+    cc1 = c1 - 1
+    rr2 = r2 - 1
+    cc2 = c2 - 1
+
+    min_row = min(rr1, rr2)
+    max_row = max(rr1, rr2)
+    min_col = min(cc1, cc2)
+    max_col = max(cc1, cc2)
+
+    xmin = start_x + min_col * cell_w + margin
+    xmax = start_x + (max_col + 1) * cell_w - margin
+    ymin = start_y + min_row * cell_h + margin
+    ymax = start_y + (max_row + 1) * cell_h - margin
+
+    return (xmin, xmax, ymin, ymax)
+
+
+def spawn_level3_enemies():
+    global enemy_L3_type1
+    enemy_L3_type1 = []
+
+    # Enemy A: (3,1) to (4,5)
+    b1 = level3_rect_bounds(3, 1, 4, 5)
+    cx = (b1[0] + b1[1]) / 2.0
+    cy = (b1[2] + b1[3]) / 2.0
+    enemy_L3_type1.append({
+        "type": 1,
+        "home_bounds": b1,
+        "x": cx, "y": cy,
+        "r": 18.0,
+        "speed": 0.2,
+        "dirx": 1,
+        "diry": 1
+    })
+
+    # Enemy B: (1,8) to (4,9)
+    # NOTE: you typed "(1,8) to (1,) to (4,8) to (4,9)" — I’m assuming cols 8..9.
+    b2 = level3_rect_bounds(1, 8, 4, 9)
+    cx2 = (b2[0] + b2[1]) / 2.0
+    cy2 = (b2[2] + b2[3]) / 2.0
+    enemy_L3_type1.append({
+        "type": 1,
+        "home_bounds": b2,
+        "x": cx2, "y": cy2,
+        "r": 18.0,
+        "speed": 0.2,
+        "dirx": -1,
+        "diry": 1
+    })
+    
+def point_in_bounds(x, y, bounds):
+    xmin, xmax, ymin, ymax = bounds
+    return (xmin <= x <= xmax) and (ymin <= y <= ymax)
+
+def update_level3_type1_enemy(e):
+    bounds = e["home_bounds"]
+    xmin, xmax, ymin, ymax = bounds
+
+    # If player is inside THIS enemy’s rectangle -> chase
+    if point_in_bounds(player_x, player_y, bounds):
+        dx = player_x - e["x"]
+        dy = player_y - e["y"]
+        d = math.sqrt(dx*dx + dy*dy) + 1e-6
+        e["x"] += (dx/d) * e["speed"]
+        e["y"] += (dy/d) * e["speed"]
+    else:
+        # Roam (simple bounce inside rectangle)
+        e["x"] += e["dirx"] * e["speed"]
+        e["y"] += e["diry"] * e["speed"]
+
+        if e["x"] <= xmin or e["x"] >= xmax:
+            e["dirx"] *= -1
+        if e["y"] <= ymin or e["y"] >= ymax:
+            e["diry"] *= -1
+
+    # clamp inside
+    e["x"] = clamp(e["x"], xmin, xmax)
+    e["y"] = clamp(e["y"], ymin, ymax)
+
+
+
 def set_active_level(level_num):
     global level_1_active, level_2_active, level_3_active, level_4_active
     global lives
@@ -250,6 +366,8 @@ def set_active_level(level_num):
 
     if level_num == 2:
         spawn_level2_enemies()
+    if level_num == 3:
+        spawn_level3_enemies()
 
 
 
@@ -872,6 +990,17 @@ def check_enemy_collision():
             if dx*dx + dy*dy <= (player_r + e["r"])**2:
                 player_hit_by_enemy()
                 return
+    # -------- Level 3 collision (type-1 enemies) --------
+    if level_3_active:
+        for e in enemy_L3_type1:
+            # only collide if player is inside that enemy's rectangle
+            if point_in_bounds(player_x, player_y, e["home_bounds"]):
+                dx = player_x - e["x"]
+                dy = player_y - e["y"]
+                if dx*dx + dy*dy <= (player_r + e["r"])**2:
+                    player_hit_by_enemy()
+        return
+
 
 
 def update_bullets_level2():
@@ -924,6 +1053,13 @@ def draw_level2_enemies_and_bullets():
         glutSolidSphere(b["r"], 10, 10)
         glPopMatrix()
 
+def draw_level3_enemies():
+    for e in enemy_L3_type1:
+        glPushMatrix()
+        glTranslatef(e["x"], e["y"], player_r + 10)
+        glColor3f(0.2, 0.2, 0.8)
+        glutSolidSphere(e["r"], 16, 16)
+        glPopMatrix()
 
 
 def player_hit_by_enemy():
@@ -1643,8 +1779,10 @@ def idle():
             update_level2_type1_enemy(e)
         update_level2_type2_enemy(enemy_L2_type2)
         update_bullets_level2()
-
-
+        
+    if level_3_active:
+        for e in enemy_L3_type1:
+            update_level3_type1_enemy(e)
 
 
     if speed_boost_timer > 0:
@@ -1669,6 +1807,8 @@ def showScreen():
     draw_rewards()
     if level_2_active:
         draw_level2_enemies_and_bullets()
+    if level_3_active:
+        draw_level3_enemies()
 
 
     # portals should be drawn after walls exist
