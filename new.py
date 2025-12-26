@@ -29,6 +29,8 @@ score = 0
 MAX_LIVES = 5
 lives = MAX_LIVES
 
+cheat_freeze_enemies = False
+
 game_over = False
 RESTART_LIVES =5
 
@@ -1444,7 +1446,7 @@ def main_menu():
 
 
 def keyboardListener(key, x, y):
-    global portal_cooldown , player_x, player_y
+    global portal_cooldown , player_x, player_y, cheat_freeze_enemies
     global game_over
     if game_over:
         if key in [b'r', b'R']:
@@ -1468,6 +1470,9 @@ def keyboardListener(key, x, y):
         try_move(-player_speed, 0)
     elif key == b'd':
         try_move(player_speed, 0)
+    elif key == b'c' or key == b'C':
+        cheat_freeze_enemies = not cheat_freeze_enemies
+
 
     # spawn portal pair
     elif key == b'1':
@@ -1930,40 +1935,44 @@ def update_bullets_level3():
 
 def idle():
     global speed_boost_timer, player_speed
-    global game_over
+    global game_over, cheat_freeze_enemies
+
+    # Freeze everything on game over (but keep drawing)
     if game_over:
         glutPostRedisplay()
         return
 
+    # ---------------- ENEMY UPDATES (paused in cheat mode) ----------------
+    if not cheat_freeze_enemies:
+        if level_1_active:
+            update_enemy_level_1()
 
-    if level_1_active:
-        update_enemy_level_1()
+        if level_2_active:
+            for e in enemy_L2_type1:
+                update_level2_type1_enemy(e)
+            update_level2_type2_enemy(enemy_L2_type2)
+            update_bullets_level2()
 
-    if level_2_active:
-        for e in enemy_L2_type1:
-            update_level2_type1_enemy(e)
-        update_level2_type2_enemy(enemy_L2_type2)
-        update_bullets_level2()
-        
-    if level_3_active:
-        for e in enemy_L3_type1:
-            update_level3_type1_enemy(e)
+        if level_3_active:
+            for e in enemy_L3_type1:
+                update_level3_type1_enemy(e)
 
-        for t in enemy_L3_type2:
-            update_level3_type2_enemy(t)
-        update_bullets_level3()
+            for t in enemy_L3_type2:
+                update_level3_type2_enemy(t)
+            update_bullets_level3()
 
-
-
+    # ---------------- EVERYTHING ELSE (still runs in cheat mode) ----------------
     if speed_boost_timer > 0:
         speed_boost_timer -= 1
         if speed_boost_timer == 0:
             player_speed = base_player_speed
 
+    # Rewards still work; collisions still checked
     check_reward_collision()
     check_enemy_collision()
 
     glutPostRedisplay()
+
 
 
 def restart_level_from_game_over():
