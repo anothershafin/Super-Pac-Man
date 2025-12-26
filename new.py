@@ -25,7 +25,9 @@ level_4_active = False
 player_x = -350.0
 player_y = -350.0
 score = 0
-lives = 3
+MAX_LIVES = 5
+lives = MAX_LIVES
+
 
 base_player_speed = 18.0
 player_speed = base_player_speed
@@ -156,7 +158,7 @@ enemy1 = {
     "y": -300.0,
     "z": 18.0,
     "r": 18.0,
-    "speed":0.5,
+    "speed":0.1,
     "dir": 1,       # +1 or -1 for patrol direction
     "active": True
 }
@@ -175,10 +177,16 @@ def player_on_enemy_side():
 
 def set_active_level(level_num):
     global level_1_active, level_2_active, level_3_active, level_4_active
+    global lives
+
     level_1_active = level_num == 1
     level_2_active = level_num == 2
     level_3_active = level_num == 3
     level_4_active = level_num == 4
+
+    lives = MAX_LIVES
+    spawn_player_for_level(level_num)
+
 
 def promote_level():
     if level_1_active:
@@ -358,6 +366,17 @@ def can_place_portal_here(px, py):
         return level3_cell_at(px, py) == 1
     return True
 
+def spawn_player_for_level(level):
+    global player_x, player_y
+
+    if level == 1:
+        player_x, player_y = -350, -350   # original Level 1 spawn
+
+    elif level == 2:
+        player_x, player_y = random_green_position()
+
+    elif level == 3:
+        player_x, player_y = random_green_position()
 
 
 def try_move(dx, dy):
@@ -426,6 +445,37 @@ def draw_rewards():
 
         glutSolidSphere(r["r"], 12, 12)
         glPopMatrix()
+
+def check_enemy_collision():
+    global lives
+
+    if not level_1_active:
+        return
+
+    ex, ey = enemy1["x"], enemy1["y"]
+    px, py = player_x, player_y
+
+    dx = px - ex
+    dy = py - ey
+
+    if dx*dx + dy*dy <= (player_r + enemy1["r"])**2:
+        player_hit_by_enemy()
+
+def player_hit_by_enemy():
+    global lives
+
+    lives -= 1
+
+    if lives <= 0:
+        lives = 0
+        # later: game over logic
+        print("GAME OVER")
+        spawn_player_for_level(get_active_level())
+        return
+
+    # respawn player
+    spawn_player_for_level(get_active_level())
+
 
 
 def check_reward_collision():
@@ -626,26 +676,45 @@ def try_teleport():
                 return
 
 
-def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
-    glColor3f(1, 1, 1)
+def draw_text(x, y, text, scale=0.35):
+    # Make HUD text immune to whatever state the 3D scene set.
+    glPushAttrib(GL_ALL_ATTRIB_BITS)
+
+    glDisable(GL_DEPTH_TEST)
+    glDisable(GL_CULL_FACE)
+    glDisable(GL_LIGHTING)
+    glDisable(GL_TEXTURE_2D)
+    glLineWidth(2.0)
+
+    # 2D projection in pixels
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
     glLoadIdentity()
-
     gluOrtho2D(0, 1000, 0, 800)
 
     glMatrixMode(GL_MODELVIEW)
     glPushMatrix()
     glLoadIdentity()
 
-    glRasterPos2f(x, y)
+    glColor3f(1, 1, 1)
+    glTranslatef(x, y, 0)
+    glScalef(scale, scale, 1)
+    #print("HUD:", text)
+
     for ch in text:
-        glutBitmapCharacter(font, ord(ch))
+        if ord(ch) < 128:  # keep it ASCII-safe
+            glutStrokeCharacter(GLUT_STROKE_ROMAN, ord(ch))
 
     glPopMatrix()
     glMatrixMode(GL_PROJECTION)
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
+
+    glPopAttrib()
+
+
+
+
 
 
 def keyboardListener(key, x, y):
@@ -997,6 +1066,8 @@ def idle():
             player_speed = base_player_speed
 
     check_reward_collision()
+    check_enemy_collision()
+
     glutPostRedisplay()
 
 
@@ -1019,7 +1090,9 @@ def showScreen():
     # draw_text(10, 770, "WASD move | 1 spawn portals")
     draw_text(10, 740, f"Player: ({player_x:.1f}, {player_y:.1f})")
     draw_text(10, 770, f"Score: {score}")
-    draw_text(10, 710, f"Lives: {lives}")
+    hearts = "<3" * lives
+    draw_text(10, 710, f"Lives: {hearts}")
+
 
     if level_1_active:
         draw_enemy_level_1()
