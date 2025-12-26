@@ -5,11 +5,11 @@ import math
 import random
 
 
-# camera_pos = (-450, -650, 520)
-camera_pos = (0, -650, 520)
+camera_pos = (-450, -650, 520)
+#camera_pos = (0, -650, 520)
 
 
-fovY = 120
+fovY = 90
 GRID_LENGTH = 600
 rand_var = 423
 
@@ -551,6 +551,27 @@ def spawn_current_reward_phase():
                 "r": 20
             })
 
+def can_place_portal_here(px, py):
+    if level_1_active:
+        return True
+    if level_2_active:
+        return level2_cell_at(px, py) == 1
+    if level_3_active:
+        return level3_cell_at(px, py) == 1
+    return True
+
+def spawn_player_for_level(level):
+    global player_x, player_y
+
+    if level == 1:
+        player_x, player_y = -350, -350 
+
+    elif level == 2:
+        player_x, player_y = -520, -520
+
+
+    elif level == 3:
+        player_x, player_y = random_green_position()
 
 def advance_reward_phase():
     global reward_phase
@@ -599,6 +620,12 @@ def try_move(dx, dy):
     if level_3_active:
         if allowed_on_level_3(nx, ny):
             player_x, player_y = nx, ny
+            
+    if level_3_active:
+        if allowed_on_level_3(nx, ny):
+            player_x, player_y = nx, ny
+
+
 
 
 
@@ -772,6 +799,89 @@ def draw_level2_enemies_and_bullets():
         glColor3f(1.0, 1.0, 0.2)  # yellow bullet
         glutSolidSphere(b["r"], 10, 10)
         glPopMatrix()
+
+def check_enemy_collision():
+    global lives
+
+    if not level_1_active:
+        return
+
+    ex, ey = enemy1["x"], enemy1["y"]
+    px, py = player_x, player_y
+
+    dx = px - ex
+    dy = py - ey
+
+    if dx*dx + dy*dy <= (player_r + enemy1["r"])**2:
+        player_hit_by_enemy()
+
+def update_bullets_level2():
+    global bullets
+
+    new_list = []
+    for b in bullets:
+        b["x"] += b["vx"]
+        b["y"] += b["vy"]
+
+        # bullet exists only inside its own green block (TR)
+        if level2_green_block(b["x"], b["y"]) != b["home"]:
+            continue
+
+        # collision with player only if player also in TR block
+        if level2_green_block(player_x, player_y) == b["home"]:
+            dx = player_x - b["x"]
+            dy = player_y - b["y"]
+            if dx*dx + dy*dy <= (player_r + b["r"])**2:
+                player_hit_by_enemy()
+                continue
+
+        new_list.append(b)
+
+    bullets = new_list
+
+def draw_level2_enemies_and_bullets():
+    # type1 enemies
+    for e in enemy_L2_type1:
+        glPushMatrix()
+        glTranslatef(e["x"], e["y"], e.get("z", player_r + 10))
+        glColor3f(0.2, 0.2, 0.8)  # blue
+        glutSolidSphere(e["r"], 16, 16)
+        glPopMatrix()
+
+    # type2 turret
+    if enemy_L2_type2 is not None:
+        t = enemy_L2_type2
+        glPushMatrix()
+        glTranslatef(t["x"], t["y"], player_r)
+        glColor3f(0.9, 0.3, 0.1)  # orange turret
+        glutSolidSphere(t["r"], 16, 16)
+        glPopMatrix()
+
+    # bullets
+    for b in bullets:
+        glPushMatrix()
+        glTranslatef(b["x"], b["y"], player_r)
+        glColor3f(1.0, 1.0, 0.2)  # yellow bullet
+        glutSolidSphere(b["r"], 10, 10)
+        glPopMatrix()
+
+
+
+def player_hit_by_enemy():
+    global lives
+
+    lives -= 1
+
+    if lives <= 0:
+        lives = 0
+        # later: game over logic
+        print("GAME OVER")
+        spawn_player_for_level(get_active_level())
+        return
+
+    # respawn player
+    spawn_player_for_level(get_active_level())
+
 
 
 def player_hit_by_enemy():
@@ -1040,6 +1150,10 @@ def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glMatrixMode(GL_PROJECTION)
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
+
+
+
+
 
 
 def keyboardListener(key, x, y):
