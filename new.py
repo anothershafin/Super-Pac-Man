@@ -203,7 +203,7 @@ def spawn_level2_enemies():
         "x": sx, "y": sy,
         "z": player_r + 10,
         "r": 18.0,
-        "speed": 0.2,
+        "speed": 0.1,
         "dir": 1
     })
 
@@ -215,7 +215,7 @@ def spawn_level2_enemies():
         "x": sx2, "y": sy2,
         "z": player_r + 10,
         "r": 18.0,
-        "speed": 0.2,
+        "speed": 0.1,
         "dir": -1
     })
 
@@ -228,13 +228,15 @@ def spawn_level2_enemies():
         "x": 520, "y": 520,
         "r": 18.0,
         "angle": 0.0,        # spinning angle in degrees
-        "spin_speed": 0.5,   # degrees per frame
+        "spin_speed": 0.2,   # degrees per frame
         "fire_cd": 0         # cooldown frames
     }
 
 
 # ---------------- Level 3 Enemies ----------------
 enemy_L3_type1 = []
+enemy_L3_type2 = []   
+bullets_L3 = [] 
 
 
 def level3_world_center_of_cell(row, col):
@@ -297,13 +299,12 @@ def spawn_level3_enemies():
         "home_bounds": b1,
         "x": cx, "y": cy,
         "r": 18.0,
-        "speed": 0.2,
+        "speed": 0.1,
         "dirx": 1,
         "diry": 1
     })
 
     # Enemy B: (1,8) to (4,9)
-    # NOTE: you typed "(1,8) to (1,) to (4,8) to (4,9)" — I’m assuming cols 8..9.
     b2 = level3_rect_bounds(1, 8, 4, 9)
     cx2 = (b2[0] + b2[1]) / 2.0
     cy2 = (b2[2] + b2[3]) / 2.0
@@ -312,10 +313,76 @@ def spawn_level3_enemies():
         "home_bounds": b2,
         "x": cx2, "y": cy2,
         "r": 18.0,
-        "speed": 0.2,
+        "speed": 0.1,
         "dirx": -1,
         "diry": 1
     })
+    
+        # Enemy C: (9,4) to (12,5)
+    b3 = level3_rect_bounds(9, 4, 12, 5)
+    cx3 = (b3[0] + b3[1]) / 2.0
+    cy3 = (b3[2] + b3[3]) / 2.0
+    enemy_L3_type1.append({
+        "type": 1,
+        "home_bounds": b3,
+        "x": cx3, "y": cy3,
+        "r": 18.0,
+        "speed": 0.1,
+        "dirx": 1,
+        "diry": -1
+    })
+
+    # Enemy D: (9,8) to (10,12)
+    b4 = level3_rect_bounds(9, 8, 10, 12)
+    cx4 = (b4[0] + b4[1]) / 2.0
+    cy4 = (b4[2] + b4[3]) / 2.0
+    enemy_L3_type1.append({
+        "type": 1,
+        "home_bounds": b4,
+        "x": cx4, "y": cy4,
+        "r": 18.0,
+        "speed": 0.1,
+        "dirx": -1,
+        "diry": -1
+    })
+    
+    global enemy_L3_type2, bullets_L3
+    enemy_L3_type2 = []
+    bullets_L3 = []
+
+    def bounds_center(b):
+        return (b[0] + b[1]) / 2.0, (b[2] + b[3]) / 2.0
+
+
+
+    # Top-left green zone
+    b_tl = level3_rect_bounds(1, 1, 2, 2)
+    tx, ty = (b_tl[0] + b_tl[1]) / 2.0, (b_tl[2] + b_tl[3]) / 2.0
+    enemy_L3_type2.append({
+        "type": 2,
+        "home_bounds": b_tl,
+        "x": tx, "y": ty,
+        "r": 18.0,
+        "angle": 0.0,
+        "spin_speed": 0.5,
+        "fire_cd": 0
+    })
+
+    # Bottom-right green zone
+    b_br = level3_rect_bounds(10, 10, 12, 12)
+    tx2, ty2 = (b_br[0] + b_br[1]) / 2.0, (b_br[2] + b_br[3]) / 2.0
+    enemy_L3_type2.append({
+        "type": 2,
+        "home_bounds": b_br,
+        "x": tx2, "y": ty2,
+        "r": 18.0,
+        "angle": 0.0,
+        "spin_speed": 0.5,
+        "fire_cd": 0
+    })
+
+
+
     
 def point_in_bounds(x, y, bounds):
     xmin, xmax, ymin, ymax = bounds
@@ -696,7 +763,8 @@ def spawn_player_for_level(level):
 
 
     elif level == 3:
-        player_x, player_y = random_green_position()
+        player_x = -536
+        player_y = 40
 
 def advance_reward_phase():
     global reward_phase
@@ -704,28 +772,6 @@ def advance_reward_phase():
     if reward_phase < 3:
         reward_phase += 1
         spawn_current_reward_phase()
-
-def can_place_portal_here(px, py):
-    if level_1_active:
-        return True
-    if level_2_active:
-        return level2_cell_at(px, py) == 1
-    if level_3_active:
-        return level3_cell_at(px, py) == 1
-    return True
-
-def spawn_player_for_level(level):
-    global player_x, player_y
-
-    if level == 1:
-        player_x, player_y = -350, -350 
-
-    elif level == 2:
-        player_x, player_y = -520, -520
-
-
-    elif level == 3:
-        player_x, player_y = random_green_position()
 
 
 def try_move(dx, dy):
@@ -1060,6 +1106,25 @@ def draw_level3_enemies():
         glColor3f(0.2, 0.2, 0.8)
         glutSolidSphere(e["r"], 16, 16)
         glPopMatrix()
+
+
+def draw_level3_turrets_and_bullets():
+    # turrets
+    for t in enemy_L3_type2:
+        glPushMatrix()
+        glTranslatef(t["x"], t["y"], player_r + 10)
+        glColor3f(0.9, 0.3, 0.1)
+        glutSolidSphere(t["r"], 16, 16)
+        glPopMatrix()
+
+    # bullets
+    for b in bullets_L3:
+        glPushMatrix()
+        glTranslatef(b["x"], b["y"], player_r + 10)
+        glColor3f(1.0, 1.0, 0.2)
+        glutSolidSphere(b["r"], 10, 10)
+        glPopMatrix()
+
 
 
 def player_hit_by_enemy():
@@ -1748,11 +1813,11 @@ def update_level2_type2_enemy(turret):
 
         if turret["fire_cd"] == 0:
             ang = math.radians(turret["angle"])
-            speed = 0.2
+            speed = 0.1
             vx = speed * math.cos(ang)
             vy = speed * math.sin(ang)
             fire_bullet_from_turret(turret, vx, vy)
-            turret["fire_cd"] = 300  
+            turret["fire_cd"] = 500  
 
     # ---- Player in TR: shoot toward player ----
     else:
@@ -1765,7 +1830,65 @@ def update_level2_type2_enemy(turret):
                 vx = speed * (dx / dist)
                 vy = speed * (dy / dist)
                 fire_bullet_from_turret(turret, vx, vy)
-                turret["fire_cd"] = 200
+                turret["fire_cd"] = 500
+
+def fire_bullet_L3(turret, vx, vy):
+    bullets_L3.append({
+        "x": turret["x"],
+        "y": turret["y"],
+        "r": 6.0,
+        "vx": vx,
+        "vy": vy,
+        "home_bounds": turret["home_bounds"]
+    })
+
+def update_level3_type2_enemy(turret):
+    # cooldown tick
+    if turret["fire_cd"] > 0:
+        turret["fire_cd"] -= 1
+
+    in_zone = point_in_bounds(player_x, player_y, turret["home_bounds"])
+
+    # Idle: spin + shoot slowly in spin direction
+    if not in_zone:
+        turret["angle"] = (turret["angle"] + turret["spin_speed"]) % 360.0
+        if turret["fire_cd"] == 0:
+            ang = math.radians(turret["angle"])
+            speed = 0.1       
+            fire_bullet_L3(turret, speed * math.cos(ang), speed * math.sin(ang))
+            turret["fire_cd"] = 500
+    else:
+        # Aim at player
+        if turret["fire_cd"] == 0:
+            dx = player_x - turret["x"]
+            dy = player_y - turret["y"]
+            dist = math.sqrt(dx*dx + dy*dy)
+            if dist > 0:
+                speed = 0.1
+                fire_bullet_L3(turret, speed * (dx/dist), speed * (dy/dist))
+                turret["fire_cd"] = 500
+
+def update_bullets_level3():
+    global bullets_L3
+    new_list = []
+    for b in bullets_L3:
+        b["x"] += b["vx"]
+        b["y"] += b["vy"]
+
+        # bullets only exist inside their turret zone
+        if not point_in_bounds(b["x"], b["y"], b["home_bounds"]):
+            continue
+
+        # bullet hits only if player is inside same zone
+        if point_in_bounds(player_x, player_y, b["home_bounds"]):
+            dx = player_x - b["x"]
+            dy = player_y - b["y"]
+            if dx*dx + dy*dy <= (player_r + b["r"])**2:
+                player_hit_by_enemy()
+                continue
+
+        new_list.append(b)
+    bullets_L3 = new_list
 
 
 def idle():
@@ -1783,6 +1906,11 @@ def idle():
     if level_3_active:
         for e in enemy_L3_type1:
             update_level3_type1_enemy(e)
+
+        for t in enemy_L3_type2:
+            update_level3_type2_enemy(t)
+        update_bullets_level3()
+
 
 
     if speed_boost_timer > 0:
@@ -1809,6 +1937,7 @@ def showScreen():
         draw_level2_enemies_and_bullets()
     if level_3_active:
         draw_level3_enemies()
+        draw_level3_turrets_and_bullets()
 
 
     # portals should be drawn after walls exist
