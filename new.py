@@ -149,7 +149,7 @@ right_inner_x =  L - wall_thickness
 portal_lr_active = False   # left , right
 portal_ud_active = False   # up , down
 
-portal_r = 45.0
+portal_r = 90.0
 portal_z_center = 25.0
 portal_left = {"x": left_inner_x, "y": 0.0, "z": portal_z_center}
 portal_right = {"x": right_inner_x, "y": 0.0, "z": portal_z_center}
