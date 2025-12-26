@@ -29,6 +29,9 @@ score = 0
 MAX_LIVES = 5
 lives = MAX_LIVES
 
+game_over = False
+RESTART_LIVES =5
+
 level_start_spawn_x = player_x
 level_start_spawn_y = player_y
 
@@ -1161,36 +1164,25 @@ def draw_level3_turrets_and_bullets():
 
 
 def player_hit_by_enemy():
-    global lives
+    global lives, game_over
+    global player_x, player_y, player_z
+    global level_start_spawn_x, level_start_spawn_y
+
+    if game_over:
+        return
 
     lives -= 1
 
     if lives <= 0:
         lives = 0
-        # later: game over logic
+        game_over = True
         print("GAME OVER")
-        spawn_player_for_level(get_active_level())
         return
 
-    # respawn player
-    spawn_player_for_level(get_active_level())
-
-
-
-def player_hit_by_enemy():
-    global lives, player_x, player_y, level_start_spawn_x, level_start_spawn_y
-
-    lives -= 1
-
-    if lives <= 0:
-        lives = 0
-        print("GAME OVER")
-        player_x, player_y = level_start_spawn_x, level_start_spawn_y
-        return
-
-    # respawn player at the original level-start spawn
-    player_x, player_y = level_start_spawn_x, level_start_spawn_y
-
+    # respawn at original spawn of the current level
+    player_x = level_start_spawn_x
+    player_y = level_start_spawn_y
+    player_z = 0
 
 
 def check_reward_collision():
@@ -1445,12 +1437,24 @@ def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glMatrixMode(GL_MODELVIEW)
 
 
+def main_menu():
+    pass
 
 
 
 
 def keyboardListener(key, x, y):
     global portal_cooldown , player_x, player_y
+    global game_over
+    if game_over:
+        if key in [b'r', b'R']:
+            restart_level_from_game_over()
+            return
+        if key in [b'm', b'M']:
+            main_menu()   # make placeholder
+            return
+        return  # ignore other keys while frozen
+
 
     if portal_cooldown > 0:
         portal_cooldown -= 1
@@ -1926,6 +1930,11 @@ def update_bullets_level3():
 
 def idle():
     global speed_boost_timer, player_speed
+    global game_over
+    if game_over:
+        glutPostRedisplay()
+        return
+
 
     if level_1_active:
         update_enemy_level_1()
@@ -1957,6 +1966,31 @@ def idle():
     glutPostRedisplay()
 
 
+def restart_level_from_game_over():
+    global lives, score, player_x, player_y, player_z, game_over
+
+    lives = RESTART_LIVES
+    score = 0
+    game_over = False
+
+    # respawn player at original spawn of that level
+    player_x = level_start_spawn_x
+    player_y = level_start_spawn_y
+    player_z = 0
+
+    # reset level-specific things
+    lvl = get_active_level()
+    spawn_rewards_for_level()
+
+    if lvl == 2:
+        spawn_level2_enemies()
+    elif lvl == 3:
+        spawn_level3_enemies()
+        # also clear bullets if your level3 uses another list
+        # bullets_L3.clear()   # if needed
+
+
+
 def showScreen():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     glLoadIdentity()
@@ -1966,6 +2000,12 @@ def showScreen():
 
     draw_environment()
     draw_rewards()
+    
+    if game_over:
+        draw_text(400, 760, "GAME OVER")
+        draw_text(400, 720, "Press R to restart the level")
+        draw_text(400, 700, "Press M for main menu")
+
     
     if level_2_active:
         draw_level2_enemies_and_bullets()
