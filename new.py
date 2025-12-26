@@ -638,21 +638,64 @@ def try_move(dx, dy):
 
 
 def draw_player():
-    
+    """
+    Draw player like Player.png using ONLY cubes (scaled).
+    Local coordinates: +X right, +Y forward, +Z up.
+    """
     glPushMatrix()
-    
-    glTranslatef(player_x, player_y, player_z + player_r)
-     
-    # player shape needs to change!!!
-    
-    glColor3f(1.0, 0.25, 0.10)
-    glutSolidSphere(player_r, 16, 16)
 
-    glTranslatef(0, 0, player_r + 8)
-    glColor3f(1.0, 0.85, 0.10)
-    glutSolidCube(14)
+    # Place character at player position
+    glTranslatef(player_x, player_y, player_z + player_r)
+
+    # ---------------- helpers ----------------
+    def cube(x, y, z, sx, sy, sz, r, g, b):
+        """Draw a scaled cube centered at (x,y,z) in local space."""
+        glPushMatrix()
+        glTranslatef(x, y, z)
+        glScalef(sx, sy, sz)
+        glColor3f(r, g, b)
+        glutSolidCube(1.0)
+        glPopMatrix()
+
+    # ---------------- colors (approx Player.png) ----------------
+    SKIN  = (1.0, 0.80, 0.80)
+    SHIRT = (1.0, 0.00, 0.00)
+    PANTS = (0.00, 0.45, 0.75)
+    BLACK = (0.0, 0.0, 0.0)
+
+    # Scale of the whole avatar (tweak if you want bigger/smaller)
+    S = 6.0
+
+    # ---------------- build model ----------------
+    # HEAD (skin)
+    cube(0*S, 0*S, 13*S, 6*S, 4*S, 6*S, *SKIN)
+
+    # EYES / GLASSES stripe (black) across upper head
+    cube(0*S, 0*S, 15*S, 6*S, 4.2*S, 0.4*S, *BLACK)
+
+
+    # LEFT EYE block (black square on stripe)
+    cube(-1.5*S, -2.10*S, 14.8*S, 1.1*S, 0.25*S, 1.1*S, *BLACK)
+
+    # NECK (skin)
+    cube(0*S, 0*S, 10.0*S, 2.0*S, 2.0*S, 1.5*S, *SKIN)
+
+    # TORSO (shirt red)
+    cube(0*S, 0*S, 6.0*S, 8.0*S, 4.5*S, 7.0*S, *SHIRT)
+
+    # ARMS (skin)
+    cube(-6.0*S, 0*S, 6.0*S, 3.0*S, 4.0*S, 7.0*S, *SKIN)  # left arm
+    cube( 6.0*S, 0*S, 6.0*S, 3.0*S, 4.0*S, 7.0*S, *SKIN)  # right arm
+
+    # PANTS block (blue)
+    cube(0*S, 0*S, 0.5*S, 8.0*S, 4.5*S, 7.0*S, *PANTS)
+
+    # LEGS (two blue columns with a gap in middle)
+    cube(-2.0*S, 0*S, -6.5*S, 4.0*S, 4.0*S, 8.0*S, *PANTS)  # left leg
+    cube( 2.0*S, 0*S, -6.5*S, 4.0*S, 4.0*S, 8.0*S, *PANTS)  # right leg
 
     glPopMatrix()
+
 
 def draw_enemy_level_1():
     if not enemy1["active"]:
