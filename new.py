@@ -29,6 +29,9 @@ score = 0
 MAX_LIVES = 5
 lives = MAX_LIVES
 
+level_start_spawn_x = player_x
+level_start_spawn_y = player_y
+
 player_spawn_positions = {
     2: (-350, -350),   # Level 1 spawn
     3: ( -350, -350),   # Level 2 spawn
@@ -200,7 +203,7 @@ def spawn_level2_enemies():
         "x": sx, "y": sy,
         "z": player_r + 10,
         "r": 18.0,
-        "speed": 6.0,
+        "speed": 0.2,
         "dir": 1
     })
 
@@ -212,7 +215,7 @@ def spawn_level2_enemies():
         "x": sx2, "y": sy2,
         "z": player_r + 10,
         "r": 18.0,
-        "speed": 6.0,
+        "speed": 0.2,
         "dir": -1
     })
 
@@ -225,7 +228,7 @@ def spawn_level2_enemies():
         "x": 520, "y": 520,
         "r": 18.0,
         "angle": 0.0,        # spinning angle in degrees
-        "spin_speed": 2.0,   # degrees per frame
+        "spin_speed": 0.5,   # degrees per frame
         "fire_cd": 0         # cooldown frames
     }
 
@@ -240,6 +243,10 @@ def set_active_level(level_num):
 
     lives = MAX_LIVES
     spawn_player_for_level(level_num)
+    
+    global level_start_spawn_x, level_start_spawn_y
+    level_start_spawn_x, level_start_spawn_y = player_x, player_y
+
 
     if level_num == 2:
         spawn_level2_enemies()
@@ -801,19 +808,28 @@ def draw_level2_enemies_and_bullets():
         glPopMatrix()
 
 def check_enemy_collision():
-    global lives
-
-    if not level_1_active:
+    # -------- Level 1 collision --------
+    if level_1_active:
+        ex, ey = enemy1["x"], enemy1["y"]
+        dx = player_x - ex
+        dy = player_y - ey
+        if dx*dx + dy*dy <= (player_r + enemy1["r"])**2:
+            player_hit_by_enemy()
         return
 
-    ex, ey = enemy1["x"], enemy1["y"]
-    px, py = player_x, player_y
+    # -------- Level 2 collision (type-1 enemies) --------
+    if level_2_active:
+        for e in enemy_L2_type1:
+            # only collide if player is inside that enemy's green block
+            if level2_green_block(player_x, player_y) != e["home"]:
+                continue
 
-    dx = px - ex
-    dy = py - ey
+            dx = player_x - e["x"]
+            dy = player_y - e["y"]
+            if dx*dx + dy*dy <= (player_r + e["r"])**2:
+                player_hit_by_enemy()
+                return
 
-    if dx*dx + dy*dy <= (player_r + enemy1["r"])**2:
-        player_hit_by_enemy()
 
 def update_bullets_level2():
     global bullets
@@ -885,19 +901,19 @@ def player_hit_by_enemy():
 
 
 def player_hit_by_enemy():
-    global lives
+    global lives, player_x, player_y, level_start_spawn_x, level_start_spawn_y
 
     lives -= 1
 
     if lives <= 0:
         lives = 0
-        # later: game over logic
         print("GAME OVER")
-        spawn_player_for_level(get_active_level())
+        player_x, player_y = level_start_spawn_x, level_start_spawn_y
         return
 
-    # respawn player
-    spawn_player_for_level(get_active_level())
+    # respawn player at the original level-start spawn
+    player_x, player_y = level_start_spawn_x, level_start_spawn_y
+
 
 
 def check_reward_collision():
@@ -1491,14 +1507,28 @@ def update_enemy_level_1():
         enemy1["dir"] *= -1
 
 def update_level2_type1_enemy(e):
-    # If player is inside enemy's green block -> chase, else patrol (simple vertical)
     player_block = level2_green_block(player_x, player_y)
 
+    # Always compute bounds once
+    bounds = level2_block_bounds(e["home"])
+    if bounds is None:
+        return
+    xmin, xmax, ymin, ymax = bounds
+
+    # ---- PATROL when player is NOT in this enemy's block ----
     if player_block != e["home"]:
-        # patrol up/down
         e["y"] += e["speed"] * e["dir"]
+
+        # ✅ bounce inside the block (like level 1)
+        if e["y"] >= ymax:
+            e["y"] = ymax
+            e["dir"] = -1
+        elif e["y"] <= ymin:
+            e["y"] = ymin
+            e["dir"] = 1
+
+    # ---- CHASE when player enters this enemy's block ----
     else:
-        # chase
         dx = player_x - e["x"]
         dy = player_y - e["y"]
         dist = math.sqrt(dx*dx + dy*dy)
@@ -1506,20 +1536,10 @@ def update_level2_type1_enemy(e):
             e["x"] += e["speed"] * (dx / dist)
             e["y"] += e["speed"] * (dy / dist)
 
-    # keep inside its own green block: if it leaves, bounce direction and clamp back
-    if level2_green_block(e["x"], e["y"]) != e["home"]:
-        e["dir"] *= -1
-        e["y"] += 2 * e["speed"] * e["dir"]
+    # ✅ Clamp always (safety) so chase can't escape the block
+    e["x"] = clamp(e["x"], xmin, xmax)
+    e["y"] = clamp(e["y"], ymin, ymax)
 
-    # ✅ ALWAYS compute bounds + clamp (so 'bounds' is never undefined)
-    bounds = level2_block_bounds(e["home"])
-    if bounds is not None:
-        xmin, xmax, ymin, ymax = bounds
-        e["x"] = clamp(e["x"], xmin, xmax)
-        e["y"] = clamp(e["y"], ymin, ymax)
-
-    
-    bounds = level2_block_bounds(e["home"])
 
 def fire_bullet_from_turret(turret, vx, vy):
     bullets.append({
@@ -1549,11 +1569,11 @@ def update_level2_type2_enemy(turret):
 
         if turret["fire_cd"] == 0:
             ang = math.radians(turret["angle"])
-            speed = 1.5  # super slow bullet speed
+            speed = 0.2
             vx = speed * math.cos(ang)
             vy = speed * math.sin(ang)
             fire_bullet_from_turret(turret, vx, vy)
-            turret["fire_cd"] = 60  # shoot every ~60 frames
+            turret["fire_cd"] = 300  
 
     # ---- Player in TR: shoot toward player ----
     else:
@@ -1562,11 +1582,11 @@ def update_level2_type2_enemy(turret):
             dy = player_y - turret["y"]
             dist = math.sqrt(dx*dx + dy*dy)
             if dist > 0:
-                speed = 2.0
+                speed = 0.5
                 vx = speed * (dx / dist)
                 vy = speed * (dy / dist)
                 fire_bullet_from_turret(turret, vx, vy)
-                turret["fire_cd"] = 30
+                turret["fire_cd"] = 200
 
 
 def idle():
@@ -1605,7 +1625,6 @@ def showScreen():
     draw_environment()
     draw_rewards()
     if level_2_active:
-        print("L2 type1 count:", len(enemy_L2_type1))
         draw_level2_enemies_and_bullets()
 
 
