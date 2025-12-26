@@ -25,7 +25,7 @@ score = 0
 lives = 3
 
 player_z = 0.0
-player_r = 18.0       
+player_r = 28.0       
 
 player_spawn_positions = {
     1: (-350, -350),   # Level 1 spawn
@@ -281,7 +281,6 @@ def allowed_on_level_3(nx, ny):
 
     tile = level3_cell_at(nx, ny)
 
-    # walkable = green(1) and yellow(2)
     return tile in (1, 2)
 
 
@@ -292,23 +291,18 @@ def is_green_for_current_level(x, y):
     elif level_2_active:
         return allowed_on_level_2(x, y)
     elif level_3_active:
-        return allowed_on_green_level_3(x, y)
-    
+        return allowed_on_level_3(x, y)
     return False
 
 
-def allowed_on_green_level_3(nx, ny):
-    return allowed_on_level_3(nx, ny)
-
 
 def random_green_position():
-    for _ in range(200):   # safety limit
+    for _ in range(200): 
         x = random.uniform(-L + 40, L - 40)
         y = random.uniform(-L + 40, L - 40)
 
         if is_green_for_current_level(x, y):
             return x, y
-
     return 0, 0
 
 
@@ -325,7 +319,7 @@ def spawn_current_reward_phase():
     level = get_active_level()
     cfg = reward_config[level]
 
-    # ---------- Phase 1: Small ----------
+    # ---------- Phase 1 ----------
     if reward_phase == 1:
         for _ in range(cfg["small"]):
             x, y = random_green_position()
@@ -337,7 +331,7 @@ def spawn_current_reward_phase():
                 "r": 12
             })
 
-    # ---------- Phase 2: Medium ----------
+    # ---------- Phase 2 ----------
     elif reward_phase == 2:
         for (x, y) in cfg["medium_positions"]:
             rewards.append({
@@ -345,10 +339,10 @@ def spawn_current_reward_phase():
                 "y": y,
                 "z": 10,
                 "type": 2,
-                "r": 14
+                "r": 16
             })
 
-    # ---------- Phase 3: Big ----------
+    # ---------- Phase 3 ----------
     elif reward_phase == 3:
         for (x, y) in cfg["big_positions"]:
             rewards.append({
@@ -356,7 +350,7 @@ def spawn_current_reward_phase():
                 "y": y,
                 "z": 10,
                 "type": 3,
-                "r": 16
+                "r": 20
             })
 
 
@@ -413,16 +407,75 @@ def draw_rewards():
         glTranslatef(r["x"], r["y"], r["z"])
 
         if r["type"] == 1:
-            glColor3f(0, 0, 0)
-            # glColor3f(0.3, 0.9, 0.3)
-            
-        elif r["type"] == 2:
-            glColor3f(1, 1, 1) 
-            # glColor3f(0.9, 0.9, 0.2)
-        else:
-            glColor3f(0, 0, 1)
+            # Core energy sphere
+            glColor3f(255/255, 128/255, 128/255)
+            glPushMatrix()
+            glutSolidSphere(8, 16, 16)
+            glPopMatrix()
 
-        glutSolidSphere(r["r"], 12, 12)
+            # Upper energy band
+            glColor3f(38/255, 49/255, 150/255)
+            glPushMatrix()
+            glTranslatef(0, 0, 6)
+            glRotatef(90, 1, 0, 0)
+            glutSolidTorus(1.5, 10, 10, 24)
+            glPopMatrix()
+
+        elif r["type"] == 2:
+            # medium reward shape
+        
+            # core energy sphere
+            glColor3f(163/255, 0/255, 102/255)
+            glColor3f(0, 1, 1)
+            glutSolidSphere(10, 16, 16)
+
+            # Frame cube
+            glColor3f(0,0,0)
+            glColor3f(1, 0, 1)
+            glPushMatrix()
+            glScalef(1.8, 1.8, 1.8)
+            glutWireCube(12)
+            glPopMatrix()
+
+            # Energy ring
+            glColor3f(1,1,1)
+            glColor3f(255/255, 255/255, 255/255)
+            glPushMatrix()
+            glRotatef(90, 1, 0, 0)
+            glutSolidTorus(2, 16, 10, 24)
+            glPopMatrix()
+            
+        else:
+
+            # big reward shape
+            glColor3f(250/255, 250/255, 250/255)
+            glPushMatrix()
+            glScalef(2.2, 2.2, 0.6)
+            glutSolidCube(10)
+            glPopMatrix()
+
+            # Crystal spike
+            # glColor3f(20/255, 128/255, 93/255)
+            glColor3f(0,0,0)            
+            glPushMatrix()
+            glTranslatef(0, 0, 8)
+            glutSolidCone(10, 32, 20, 20)
+            glPopMatrix()
+
+            # Portal ring
+            glPushMatrix()
+            glTranslatef(0, 0, 20)
+            glRotatef(90, 1, 0, 0)
+            glutSolidTorus(2.5, 18, 12, 32)
+            glPopMatrix()
+
+            # Energy orb
+            glPushMatrix()
+            glTranslatef(0, 0, 36)
+            glutSolidSphere(6, 16, 16)
+            glPopMatrix()
+            
+
         glPopMatrix()
 
 
