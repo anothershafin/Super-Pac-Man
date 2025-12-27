@@ -14,7 +14,7 @@ GRID_LENGTH=600
 rand_var=423
 
 #Level Flags 
-level_1_active=True
+level_1_active=False
 level_2_active=False
 level_3_active=False
 level_4_active=False
@@ -28,6 +28,11 @@ score=0
 
 MAX_LIVES=5
 lives=MAX_LIVES
+
+main_menu_active = True
+high_score = 0
+last_score = 0
+
 
 #  GUARD MODE (score multiple of 50) 
 FPS=60   
@@ -1461,28 +1466,87 @@ def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
 
 
 def main_menu():
-    pass
+    global main_menu_active, game_over
+    global level_1_active, level_2_active, level_3_active, level_4_active
+    global cheat_freeze_enemies, guard_active, guard_timer
+
+    main_menu_active = True
+    game_over = False
+
+
+    level_1_active = False
+    level_2_active = False
+    level_3_active = False
+    level_4_active = False
+
+    cheat_freeze_enemies = False
+    try:
+        guard_active = False
+        guard_timer = 0
+    except:
+        pass
+
+def start_new_game():
+    global main_menu_active, game_over
+    global score, lives
+    global level_start_spawn_x, level_start_spawn_y
+    global player_x, player_y, player_z
+    global cheat_freeze_enemies, guard_active, guard_timer
+
+    main_menu_active = False
+    game_over = False
+
+    set_active_level(1)
+
+
+    score = 0
+    lives = RESTART_LIVES   
+
+
+    cheat_freeze_enemies = False
+    try:
+        guard_active = False
+        guard_timer = 0
+    except:
+        pass
+
+    player_x = level_start_spawn_x
+    player_y = level_start_spawn_y
+    player_z = 0
+
+    spawn_rewards_for_level()
 
 
 
 
 def keyboardListener(key, x, y):
-    global portal_cooldown , player_x, player_y, cheat_freeze_enemies
-    global game_over
+    global portal_cooldown, player_x, player_y, cheat_freeze_enemies
+    global game_over, main_menu_active, high_score, last_score
+
+    # -------- MAIN MENU controls --------
+    if main_menu_active:
+        if key in [b'n', b'N']:
+            start_new_game()
+        glutPostRedisplay()
+        return
+
+    # -------- GAME OVER controls --------
     if game_over:
         if key in [b'r', b'R']:
             restart_level_from_game_over()
             return
         if key in [b'm', b'M']:
-            main_menu()   # make placeholder
+            last_score = score
+            if score > high_score:
+                high_score = score
+            main_menu()
             return
         return  # ignore other keys while frozen
 
-
+    # ---- normal gameplay below ----
     if portal_cooldown > 0:
         portal_cooldown -= 1
 
-    # movement
     if key == b'w':
         try_move(0, player_speed)
     elif key == b's':
@@ -1491,49 +1555,34 @@ def keyboardListener(key, x, y):
         try_move(-player_speed, 0)
     elif key == b'd':
         try_move(player_speed, 0)
-    elif key == b'c' or key == b'C':
+    elif key in [b'c', b'C']:
         cheat_freeze_enemies = not cheat_freeze_enemies
 
-
-    # spawn portal pair
     elif key == b'1':
         if can_place_portal_here(player_x, player_y):
             toggle_horizontal_portals()
-
-    elif key == b'2':
-        if can_place_portal_here(player_x, player_y):
-            toggle_vertical_portals()
-
-        # ---- GUARD MODE ----
-    elif key == b'g' or key == b'G':
-        global guard_active, guard_timer, guard_last_used_score
-        if guard_is_available():
-            guard_active = True
-            guard_timer = FPS * 5      # 5 seconds
-            guard_last_used_score = score
-
-    
-    
+            
     elif key == b'0':
         set_active_level(1)
     elif key == b'9':
         set_active_level(2)
     elif key == b'8':
         set_active_level(3)
-    elif key == b'7':
-        set_active_level(4)
-        
-    if key in [b'g', b'G']:
+
+    elif key == b'2':
+        if can_place_portal_here(player_x, player_y):
+            toggle_vertical_portals()
+
+    elif key in [b'g', b'G']:
+        global guard_active, guard_timer, guard_last_used_score
         if guard_is_available():
             guard_active = True
-            guard_timer = GUARD_DURATION_FRAMES
+            guard_timer = FPS * 5
             guard_last_used_score = score
-        return
-    
-    
-    try_teleport()
 
+    try_teleport()
     glutPostRedisplay()
+
 
 
 def specialKeyListener(key, x, y):
@@ -1570,6 +1619,71 @@ def setupCamera():
         0, 120, 0,    # look-at target (slightly forward so ground looks nicer)
         0, 0, 1       # up vector
     )
+
+
+import math
+
+def draw_neon_oval(cx, cy, rx, ry,
+                   inner=(0.20, 0.90, 1.00, 0.35),
+                   glow =(0.20, 0.90, 1.00, 0.12),
+                   outline=(0.20, 0.90, 1.00, 0.85),
+                   segments=80):
+    """
+    Draw a horizontally-oval neon capsule in 2D screen space.
+    Uses the same 0..1000 x 0..800 projection as draw_text().
+    """
+
+    glDisable(GL_DEPTH_TEST)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    # Set 2D projection
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    gluOrtho2D(0, 1000, 0, 800)
+
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+
+    # --- glow pass (bigger, softer) ---
+    glColor4f(*glow)
+    glBegin(GL_TRIANGLE_FAN)
+    glVertex2f(cx, cy)
+    for i in range(segments + 1):
+        a = (2.0 * math.pi * i) / segments
+        glVertex2f(cx + math.cos(a) * (rx * 1.08), cy + math.sin(a) * (ry * 1.25))
+    glEnd()
+
+    # --- inner pass (main filled oval) ---
+    glColor4f(*inner)
+    glBegin(GL_TRIANGLE_FAN)
+    glVertex2f(cx, cy)
+    for i in range(segments + 1):
+        a = (2.0 * math.pi * i) / segments
+        glVertex2f(cx + math.cos(a) * rx, cy + math.sin(a) * ry)
+    glEnd()
+
+    # --- outline pass (bright edge) ---
+    glLineWidth(3.0)
+    glColor4f(*outline)
+    glBegin(GL_LINE_LOOP)
+    for i in range(segments):
+        a = (2.0 * math.pi * i) / segments
+        glVertex2f(cx + math.cos(a) * rx, cy + math.sin(a) * ry)
+    glEnd()
+    glLineWidth(1.0)
+
+    # Restore matrices
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+
+    glDisable(GL_BLEND)
+    glEnable(GL_DEPTH_TEST)
+
 
 
 def draw_level_1():
@@ -1971,6 +2085,11 @@ def update_bullets_level3():
 def idle():
     global speed_boost_timer, player_speed
     global game_over, cheat_freeze_enemies
+    
+    if main_menu_active:
+        glutPostRedisplay()
+        return
+
 
     # Freeze everything on game over (but keep drawing)
     if game_over:
@@ -2048,6 +2167,15 @@ def showScreen():
     glViewport(0, 0, 1000, 800)
 
     setupCamera()
+    if main_menu_active:
+        draw_neon_oval(500, 740, rx=360, ry=55)
+        draw_text(L/2, 540, "Welcome To Portal Pirate.", font=GLUT_BITMAP_TIMES_ROMAN_24)
+        draw_text(L/2,480, "Press N to start new Game.")
+        draw_text(L/2,410, f"High Score: {high_score}")
+        draw_neon_oval(500, 80, rx=360, ry=55)
+        glutSwapBuffers()
+        return
+
 
     draw_environment()
     draw_rewards()
@@ -2080,6 +2208,8 @@ def showScreen():
     draw_text(10, 770, f"Score: {score}")
     hearts = "<3" * lives
     draw_text(10, 710, f"Lives: {hearts}")
+    draw_text(10, 670,"Green Zones are Safe Zones. Red Zones are Prohibited. Yellow Zones are Resting Zones")
+    
     # GUARD HUD 
     if guard_is_available():
         draw_text(10, 680, "Press G to enter Guard Mode")
@@ -2111,9 +2241,9 @@ def main():
     glutMouseFunc(mouseListener)
     glutIdleFunc(idle)
 
-    spawn_rewards_for_level()
-    if level_2_active:
-        spawn_level2_enemies()
+    # spawn_rewards_for_level()
+    # if level_2_active:
+    #     spawn_level2_enemies()
 
     
     glutMainLoop()
